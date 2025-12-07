@@ -1,39 +1,64 @@
-# Build stage
-FROM python:3.11-slim as builder
+# infra/containers/Containerfile.web
+# Multi-stage build for Django web server
+
+# Stage 1: Build dependencies
+FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Copy and install Python dependencies
 COPY backend/pyproject.toml .
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip wheel --no-cache-dir --wheel-dir /wheels .
 
-# Runtime stage
-FROM python:3.11-slim
+
+# Stage 2: Runtime
+FROM python:3.12-slim AS runtime
+
+# Create non-root user
+RUN groupadd --gid 1000 appgroup && \
+    useradd --uid 1000 --gid appgroup --shell /bin/bash --create-home appuser
 
 WORKDIR /app
 
 # Install runtime dependencies only
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home appuser
+    && apt-get clean
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Copy wheels from builder and install
+COPY --from=builder /wheels /wheels
+RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 
 # Copy application code
-COPY backend/ .
+COPY --chown=appuser:appgroup backend/ .
+
+# Collect static files
+RUN python manage.py collectstatic --noinput --settings=sniffleads.settings.production || true
 
 # Switch to non-root user
 USER appuser
 
 EXPOSE 8000
 
-CMD ["gunicorn", "sniffleads.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/')" || exit 1
+
+# Run with gunicorn
+CMD ["gunicorn", "sniffleads.wsgi:application", \
+     "--bind", "0.0.0.0:8000", \
+     "--workers", "4", \
+     "--threads", "2", \
+     "--worker-class", "gthread", \
+     "--worker-tmp-dir", "/dev/shm", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-", \
+     "--capture-output"]
