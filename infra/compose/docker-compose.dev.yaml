@@ -35,13 +35,14 @@ services:
       - DJANGO_SETTINGS_MODULE=sniffleads.settings.local
       - DATABASE_HOST=postgres
       - CELERY_BROKER_URL=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
-      - ../../backend:/app  # Hot reload during dev
+      - ../../backend:/app
 
   worker:
     build:
@@ -51,6 +52,7 @@ services:
       - DJANGO_SETTINGS_MODULE=sniffleads.settings.local
       - DATABASE_HOST=postgres
       - CELERY_BROKER_URL=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,6 +70,7 @@ services:
       - DJANGO_SETTINGS_MODULE=sniffleads.settings.local
       - DATABASE_HOST=postgres
       - CELERY_BROKER_URL=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       postgres:
         condition: service_healthy
