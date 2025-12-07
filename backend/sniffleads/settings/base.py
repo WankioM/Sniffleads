@@ -102,3 +102,26 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
+
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    # Check for due crawls every 15 minutes
+    "schedule-crawl-jobs": {
+        "task": "apps.sources.tasks.schedule_crawl_jobs",
+        "schedule": crontab(minute="*/15"),  # Every 15 minutes
+    },
+    
+    # Cleanup old logs weekly (Sunday at 3am)
+    "cleanup-old-crawl-logs": {
+        "task": "apps.sources.tasks.cleanup_old_crawl_logs",
+        "schedule": crontab(hour=3, minute=0, day_of_week=0),
+        "kwargs": {"days": 30},
+    },
+    
+    # Health check every 5 minutes (for monitoring)
+    "celery-health-check": {
+        "task": "apps.sources.tasks.health_check",
+        "schedule": crontab(minute="*/5"),
+    },
+}
