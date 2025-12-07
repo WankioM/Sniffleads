@@ -15,6 +15,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django_filters", 
     # Third-party
     "rest_framework",
     # Local apps
@@ -125,3 +126,5 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute="*/5"),
     },
 }
+
+REDIS_URL = CELERY_BROKER_URL
